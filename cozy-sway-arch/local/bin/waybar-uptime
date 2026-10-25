@@ -1,2 +1,0 @@
-#!/usr/bin/env bash
-awk '{printf "<span color=\"#ecd08a\">\xef\x89\x92</span> %dh %02dm\n", $1/3600, ($1%3600)/60}' /proc/uptime

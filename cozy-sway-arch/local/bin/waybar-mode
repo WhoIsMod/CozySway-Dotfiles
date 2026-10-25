@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-GAMEPAD=$(printf '\xef\x84\x9b')    # U+F11B
-BRIEF=$(printf '\xef\x82\xb1')      # U+F0B1
-case "$("$HOME/.local/bin/desktop-mode" status)" in
-    game) printf '{"text":"%s  GAME","class":"game","tooltip":"Game Mode (click: Business, right-click: menu)"}\n' "$GAMEPAD" ;;
-    *)    printf '{"text":"%s  BUSINESS","class":"business","tooltip":"Business Mode (click: Game, right-click: menu)"}\n' "$BRIEF" ;;
-esac
