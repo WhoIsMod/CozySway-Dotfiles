@@ -47,7 +47,11 @@ Notes for Debian:
 - The file manager launcher uses Dolphin (pulls in KDE libraries). To use something
   lighter, install `thunar` and change `dolphin` in `~/.config/sway/config` and
   `~/.config/waybar/config.jsonc`.
-- NVIDIA proprietary driver: run Sway with `sway --unsupported-gpu`.
+- Only if you use the proprietary NVIDIA driver: run Sway with `sway --unsupported-gpu`.
+- Intel hardware encoding in OBS uses VAAPI (`intel-media-va-driver` + `vainfo`).
+- `firmware-sof-signed` (audio firmware many Intel laptops need for mics) is in the
+  `non-free-firmware` component; enable it in your apt sources if the installer
+  reports the package as unavailable.
 
 ## Keybinds (`$mod` = Super)
 
@@ -71,6 +75,11 @@ Notes for Debian:
 | `$mod+Escape` | System mode (g/b/l/q) |
 | `$mod+w` / `$mod+Shift+w` | Next / random wallpaper |
 | `$mod+Shift+v` | VPN menu |
+| `$mod+Shift+t` | Bluetooth menu |
+| `$mod+Shift+m` | Microphone / input device menu |
+| `$mod+Shift+o` | **Stream mode** (opens OBS, silences notifications) |
+| `$mod+o` | Focus / launch OBS Studio |
+| `$mod+Shift+i` | Hide / show the panel (privacy while capturing the whole monitor) |
 | `$mod+n` / `$mod+Shift+n` | Volume control / network editor |
 | `$mod+Shift+x` | Lock screen |
 | `Print` / `Shift+Print` | Screenshot region / full screen |
@@ -82,8 +91,8 @@ Volume, mute, media and brightness keys work via `wpctl`, `playerctl` and
 
 - **Left:** app grid (fuzzel), workspace dots, window title
 - **Centre:** clickable launchers: terminal, files, browser, Discord, Spotify, Steam
-- **Right:** now playing, mode pill, idle inhibitor, clock, weather, CPU, RAM,
-  uptime, **VPN**, volume, network, tray, power menu
+- **Right:** now playing, **OBS button**, mode pill, idle inhibitor, clock, weather, CPU, RAM,
+  uptime, **VPN**, **Bluetooth**, volume, network, tray, power menu
 
 Click targets: mode pill toggles Game/Business (right-click: menu); volume opens
 `pavucontrol` (right-click: mute); clock click swaps to the date; power button
@@ -144,6 +153,106 @@ kept in a temporary file in `$XDG_RUNTIME_DIR` and deleted once the tunnel is up
 
 Needs `openvpn`, `polkit-gnome` and `zenity` (or `kdialog`).
 
+## Streaming with OBS Studio
+
+**Stream mode** (`$mod+Shift+o`, or the Mode menu, or right-click the OBS button):
+GameMode on, performance power profile, blur/shadows off (less GPU load), OBS launched
+if it isn't running, and notifications silenced (mako `do-not-disturb`, so nothing
+private pops up on stream). Business mode turns notifications back on. While OBS is
+open, Sway won't lock or blank the screen (`inhibit_idle`), and OBS opens on workspace 9.
+
+**Screen capture:** in OBS add *Screen Capture (PipeWire)*. A fuzzel picker
+(from `xdg-desktop-portal-wlr`) asks which monitor to share. The wlroots portal captures
+monitors, not individual windows. For game-only capture, `obs-vkcapture` is an option
+(package availability varies by distro). If you capture the whole monitor,
+hide the panel with `$mod+Shift+i`, since it shows weather, Wi-Fi and VPN details.
+
+**Encoder (Intel laptop):** the installer adds an OBS profile called **Cozy Stream**
+(1080p, 30 fps, x264 `veryfast`, CBR 6000 kbps, 2 s keyframes; a safe starting point
+for Twitch, raise the bitrate for YouTube). For much lower CPU load and heat, switch to
+Intel hardware encoding: *Settings -> Output -> Streaming -> Encoder* ->
+**FFmpeg VAAPI H.264 (hardware)**, device `/dev/dri/renderD128`, CBR 6000 kbps. Check
+that VA-API works first with `vainfo` (look for `VAEntrypointEncSlice` or
+`EncSliceLP` under H264). With VAAPI you can usually raise the output to 60 fps.
+Installed drivers: `intel-media-driver` (Arch) / `intel-media-va-driver` (Debian) for
+recent Intel graphics. Older Intel chips (before Broadwell) need `libva-intel-driver` /
+`i965-va-driver`. The profile is not overwritten if it already exists.
+
+**Audio routing:** PipeWire drop-in config creates three virtual sinks: *Stream Game*,
+*Stream Music*, *Stream Chat*. In `pavucontrol` -> Playback, send each app (game,
+Spotify, Discord) to one of them; you still hear everything in your headphones. In
+OBS add an *Audio Input Capture (PulseAudio)* source per sink and pick
+**Monitor of Stream Game** (etc.), plus your microphone (add OBS's *Noise Suppression*
+filter on the mic). Mute OBS's *Desktop Audio* so nothing is captured twice, which
+gives you separate volume sliders per source. Restart PipeWire once to load the sinks:
+`systemctl --user restart pipewire pipewire-pulse wireplumber`.
+
+**Virtual camera (optional):** needs the `v4l2loopback` kernel module
+(`v4l2loopback-dkms` + kernel headers on Arch). Load it with
+`sudo modprobe v4l2loopback exclusive_caps=1 card_label="OBS Camera"`.
+
+## Bluetooth
+
+The Bluetooth icon on the panel turns grey when off and green with a device count when
+connected (the tooltip lists the devices and battery levels). Left-click opens the menu:
+connect or disconnect a paired device, **Pair new device** (10 s scan), turn Bluetooth
+on or off, and open the full manager (`blueman`). Right-click toggles power. Bluetooth
+audio goes through PipeWire; after connecting headphones, pick them in `pavucontrol`
+or the volume control. Devices that need a PIN may need `blueman-manager` to pair.
+Needs the `bluetooth` service running (the installer enables it).
+
+## Microphones and aux (3.5 mm / inline) inputs
+
+The microphone icon next to the volume on the panel shows the default input (red when
+muted). Left-click lists every input PipeWire can see, lets you pick the default (running
+recordings, such as OBS or Discord, are moved to it) and has shortcuts for muting, the
+mixer's Input Devices tab, a **Fix / rescan** run and diagnostics. Right-click mutes,
+scroll changes the input volume, and `$mod+Shift+m` opens the same menu.
+
+All inputs go through PipeWire, so recording software sees them too: OBS and Audacity
+(PulseAudio sources), ALSA apps via `pipewire-alsa`, and JACK apps via `pipewire-jack`
+(run them with `pw-jack`).
+
+### Studio / condenser microphones (for example the Music D.J. M-800)
+
+What works depends on the plug on the mic's cable, so check it first:
+
+- **USB:** plug it straight into a USB port. It shows up as its own sound card in
+  `lsusb`, `arecord -l` and pavucontrol -> Input Devices (not under the laptop's jack).
+  `audio-inputs fix` switches its card to an input profile if it is stuck on "Off".
+- **3.5 mm plug:** laptops with a single headset (combo) jack expect a 4-pole headset plug.
+  A normal 3-pole mic plug usually gives no signal there; use a dedicated mic input, a
+  USB sound card, or a TRS-to-TRRS adapter. Condenser mics also need power from the jack.
+- **XLR:** condenser mics with an XLR plug need 48 V phantom power, which a laptop can't
+  supply. Use a USB audio interface with a +48V switch.
+
+If `audio-inputs status` shows inputs named `...pro-input-0` (or the card is on **Pro Audio** in
+pavucontrol -> Configuration), the card is in the raw professional profile, with no jack or
+port switching. `audio-inputs fix` switches it to a normal profile when one is available.
+
+`audio-inputs status` ends with a **Verdict** that says whether the jack sees a
+microphone or only headphones. Condenser mics are quiet on laptop inputs. Raise the gain with `alsamixer -c 0`
+(F4, Capture and Mic Boost) or in pavucontrol, and keep the input volume below 100%
+to avoid distortion.
+
+If your inline/headset mic doesn't show up:
+
+1. In `pavucontrol` -> **Input Devices**, set *Show:* to **All Input Devices**
+   (the default filter hides some inputs) and check the port dropdown for
+   *Headset Microphone* / *Microphone*.
+2. Plug the headset in and run `~/.local/bin/audio-inputs status`. It lists
+   PipeWire inputs, ALSA capture hardware, the kernel's jack-detection state and
+   firmware errors. `audio-inputs fix` restarts WirePlumber, switches cards to an
+   input-capable profile, enables ALSA capture controls, unmutes inputs and sets a real
+   default input (it also sets input volumes to 80%).
+3. Intel laptops usually need `sof-firmware` and `alsa-ucm-conf` (installed by
+   `install.sh --deps`); reboot after installing them.
+4. Hardware: a headset with a built-in mic needs a 4-pole (TRRS) plug and a combo jack.
+   A headphone-only jack can't take a mic, and CTIA/OMTP wiring mismatches give no mic.
+   If the jack values in `audio-inputs status` never change when you plug something in,
+   the kernel isn't detecting it; `hdajackretask` (package `alsa-tools`) can retask the
+   pin.
+
 ## Files
 
 ```
@@ -153,12 +262,18 @@ Needs `openvpn`, `polkit-gnome` and `zenity` (or `kdialog`).
 ~/.config/{fuzzel,mako,swaylock}/  themes
 ~/.config/kitty/cozy-dark.conf   colours (included from kitty.conf)
 ~/.config/gamemode.ini
+~/.config/pipewire/pipewire.conf.d/10-stream-sinks.conf   virtual streaming sinks
+~/.config/xdg-desktop-portal-wlr/config                   OBS screen-share picker
+~/.config/obs-studio/basic/profiles/Cozy_Stream/          OBS profile
 ~/.local/bin/
     polkit-agent                 starts whichever polkit agent is installed
     desktop-mode                 game/business controller
     waybar-mode, waybar-weather, waybar-uptime
     wallpaper                    swww/awww manager
     openvpn-menu, openvpn-status VPN module
+    bluetooth-menu               Bluetooth menu (bluetoothctl + fuzzel)
+    mic-menu, audio-inputs       input device menu / mic diagnostics and fix
+    waybar-obs, obs-open         OBS panel button / focus-or-launch
     launch-game
 ```
 
@@ -184,13 +299,21 @@ Needs `openvpn`, `polkit-gnome` and `zenity` (or `kdialog`).
   `dbus-update-activation-environment` line in the Sway config. Then run
   `systemctl --user restart xdg-desktop-portal xdg-desktop-portal-gtk` (or log out
   and back in). Check logs with `journalctl --user -u xdg-desktop-portal -b`.
+- **File dialog (upload window) too big, white, or buttons off-screen:** the dark
+  GTK theme lives in `~/.config/gtk-3.0` and `gtk-4.0`, and Sway rules in the config
+  resize and centre file dialogs to 60% x 70% of the screen. If a dialog is still
+  oversized, reset its remembered size:
+  `gsettings reset-recursively org.gtk.Settings.FileChooser; gsettings reset-recursively org.gtk.gtk4.Settings.FileChooser`,
+  then `systemctl --user restart xdg-desktop-portal xdg-desktop-portal-gtk`.
+  For a Dolphin-style (KDE) dialog instead, install `xdg-desktop-portal-kde` and add
+  `org.freedesktop.impl.portal.FileChooser=kde` under `[preferred]` in
+  `~/.config/xdg-desktop-portal/sway-portals.conf`.
 - **Empty box instead of an icon:** your Nerd Font lacks that glyph; install
   `ttf-jetbrains-mono-nerd` and `ttf-font-awesome`.
-- **No battery module:** the setup assumes a desktop; add a Waybar `battery`
-  module for a laptop.
+- **Laptop:** the panel has battery and brightness modules (scroll on the brightness
+  icon to adjust). Stream mode warns when you are on battery; plug in for streaming.
 - **Weather:** location is detected by IP via wttr.in; edit `waybar-weather` to
   pin a city.
-- **NVIDIA:** Sway needs `--unsupported-gpu`; you may also need
-  `WLR_NO_HARDWARE_CURSORS=1`.
+- **NVIDIA only:** Sway needs `--unsupported-gpu` (not needed on Intel graphics).
 - **GTK/Qt apps (e.g. Dolphin) don't match the theme:** set a dark theme with
   `nwg-look` or `kvantum`.

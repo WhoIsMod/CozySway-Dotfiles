@@ -75,3 +75,21 @@ tooltip label { color: #d9deee; }
 #custom-vpn.connecting   { color: #ecd08a; }
 #custom-vpn.connected    { color: #a9d9a0; }
 #custom-vpn:hover        { background: #2c3147; }
+
+/* OBS button + stream mode + bluetooth */
+#custom-obs { padding: 0 12px; margin: 6px 4px; background: #232738; border-radius: 10px; font-weight: bold; }
+#custom-obs.idle    { color: #6f7896; }
+#custom-obs.running { color: #ef8e9a; }
+#custom-obs:hover   { background: #2c3147; }
+#custom-mode.stream { color: #1a1d2b; background: #ef8e9a; }
+#bluetooth { padding: 0 10px; color: #d9deee; }
+
+/* laptop */
+#battery, #backlight { padding: 0 10px; color: #d9deee; }
+#battery { color: #a9d9a0; }
+#battery.charging, #battery.plugged { color: #a9d9a0; }
+#battery.warning:not(.charging)  { color: #ecd08a; }
+#battery.critical:not(.charging) { color: #ef8e9a; }
+
+/* microphone */
+#pulseaudio.mic { padding: 0 8px; color: #d9deee; }

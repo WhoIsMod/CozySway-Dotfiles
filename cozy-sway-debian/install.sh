@@ -14,7 +14,11 @@ install_deps() {
         brightnessctl playerctl pavucontrol pipewire pipewire-pulse pipewire-alsa wireplumber
         xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr xdg-utils
         network-manager network-manager-gnome power-profiles-daemon gamemode libnotify-bin
-        kitty dolphin fonts-font-awesome curl xz-utils openvpn zenity dbus dbus-user-session)
+        kitty dolphin fonts-font-awesome curl xz-utils openvpn zenity dbus dbus-user-session
+        obs-studio qt6-wayland bluez libspa-0.2-bluetooth blueman rfkill
+        intel-media-va-driver vainfo mesa-vulkan-drivers
+        gnome-themes-extra adwaita-icon-theme dconf-gsettings-backend libglib2.0-bin gsettings-desktop-schemas
+        alsa-utils alsa-ucm-conf firmware-sof-signed pipewire-jack pulseaudio-utils)
     local ok=() missing=() p
     for p in "${want[@]}"; do
         if have_pkg "$p"; then ok+=("$p"); else missing+=("$p"); fi
@@ -60,17 +64,25 @@ install_deps() {
     fi
 
     systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>/dev/null || true
+    sudo systemctl enable --now bluetooth 2>/dev/null || true
 }
 
 [[ "${1:-}" == "--deps" ]] && install_deps
 
 cd "$HERE"
-find .config .local -type f ! -name 'fx.conf.swayfx' | while read -r f; do
+find .config .local -type f ! -name 'fx.conf.swayfx' ! -path '.config/obs-studio/*' | while read -r f; do
     dest="$HOME/$f"
     mkdir -p "$(dirname "$dest")"
     [[ -e "$dest" ]] && cp "$dest" "$dest.bak-$STAMP"
     cp "$f" "$dest"
 done
+
+# OBS "Cozy Stream" profile (never overwrites an existing one)
+OBS_PROFILE="$HOME/.config/obs-studio/basic/profiles/Cozy_Stream"
+if [[ ! -d "$OBS_PROFILE" ]]; then
+    mkdir -p "$(dirname "$OBS_PROFILE")"
+    cp -r .config/obs-studio/basic/profiles/Cozy_Stream "$OBS_PROFILE"
+fi
 
 # SwayFX effects only if SwayFX is installed (not packaged in Debian); otherwise empty include.
 FX="$HOME/.config/sway/fx.conf"
@@ -84,7 +96,7 @@ fi
 mkdir -p ~/.config/kitty
 grep -qs 'cozy-dark.conf' ~/.config/kitty/kitty.conf || echo 'include cozy-dark.conf' >> ~/.config/kitty/kitty.conf
 
-chmod +x ~/.local/bin/{desktop-mode,waybar-mode,waybar-weather,waybar-uptime,launch-game,wallpaper,openvpn-menu,openvpn-status,polkit-agent}
+chmod +x ~/.local/bin/{desktop-mode,waybar-mode,waybar-weather,waybar-uptime,launch-game,wallpaper,openvpn-menu,openvpn-status,bluetooth-menu,waybar-obs,obs-open,audio-inputs,mic-menu,polkit-agent}
 mkdir -p ~/.local/state ~/Pictures/Wallpapers ~/.config/openvpn-gui
 echo "Done. Put wallpapers in ~/Pictures/Wallpapers, validate with: sway -C"
 echo "Then log out and pick the Sway session at the login screen."

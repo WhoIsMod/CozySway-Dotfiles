@@ -1,0 +1,5 @@
+[screencast]
+# Monitor picker shown when OBS asks for "Screen Capture (PipeWire)"
+chooser_type=dmenu
+chooser_cmd=fuzzel --dmenu --prompt "Share screen  "
+max_fps=60

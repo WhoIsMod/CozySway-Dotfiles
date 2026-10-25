@@ -7,9 +7,12 @@ STATE_FILE="$STATE_DIR/desktop-mode"
 GAME_PID_FILE="$STATE_DIR/gamemode.pid"
 mkdir -p "$STATE_DIR"
 
-notify() { command -v notify-send >/dev/null 2>&1 && notify-send -t 1800 "$1" "${2:-}" || true; }
-refresh_bar() { pkill -RTMIN+8 waybar 2>/dev/null || true; }
+notify()       { command -v notify-send >/dev/null 2>&1 && notify-send -t 1800 "$1" "${2:-}" || true; }
+refresh_bar()  { pkill -RTMIN+8 waybar 2>/dev/null || true; }
 current_mode() { [[ -f "$STATE_FILE" ]] && cat "$STATE_FILE" || echo business; }
+dnd_on()       { makoctl mode -a do-not-disturb >/dev/null 2>&1 || true; }
+dnd_off()      { makoctl mode -r do-not-disturb >/dev/null 2>&1 || true; }
+on_battery()   { grep -qsx 'Discharging' /sys/class/power_supply/BAT*/status; }
 
 stop_game_mode() {
     if [[ -f "$GAME_PID_FILE" ]]; then
@@ -19,7 +22,7 @@ stop_game_mode() {
     fi
 }
 
-start_game_mode() {
+start_gamemode_client() {
     stop_game_mode
     if ! command -v gamemoderun >/dev/null 2>&1; then
         notify "Desktop mode" "GameMode is not installed."; exit 1
@@ -27,30 +30,55 @@ start_game_mode() {
     # Keep a GameMode client alive so system-wide optimisations stay active.
     nohup gamemoderun sleep infinity >/dev/null 2>&1 &
     echo $! > "$GAME_PID_FILE"
+}
+
+effects_off() { swaymsg 'blur disable; shadows disable; corner_radius 0' >/dev/null 2>&1 || true; }
+effects_on()  { swaymsg 'blur enable; shadows enable; corner_radius 12' >/dev/null 2>&1 || true; }
+
+start_game_mode() {
+    start_gamemode_client
     echo game > "$STATE_FILE"
-    # Cheaper compositing (SwayFX only; harmless errors on plain Sway)
-    swaymsg 'blur disable; shadows disable; corner_radius 0' >/dev/null 2>&1 || true
+    dnd_off
+    effects_off
     powerprofilesctl set performance >/dev/null 2>&1 || true
     refresh_bar
     notify "GAME MODE" "Performance profile on, effects off"
 }
 
+start_stream_mode() {
+    start_gamemode_client
+    echo stream > "$STATE_FILE"
+    on_battery && notify "On battery" "Plug in for stable streaming" || true
+    effects_off
+    powerprofilesctl set performance >/dev/null 2>&1 || true
+    refresh_bar
+    notify "STREAM MODE" "Performance profile on, notifications silenced"
+    # Silence notifications so nothing private pops up on stream (after the notice above shows)
+    sleep 2
+    dnd_on
+    pgrep -x obs >/dev/null 2>&1 || setsid -f "$HOME/.local/bin/obs-open" >/dev/null 2>&1 || true
+}
+
 start_business_mode() {
     stop_game_mode
     echo business > "$STATE_FILE"
-    swaymsg 'blur enable; shadows enable; corner_radius 12' >/dev/null 2>&1 || true
+    dnd_off
+    effects_on
     powerprofilesctl set balanced >/dev/null 2>&1 || true
     refresh_bar
     notify "BUSINESS MODE" "Balanced profile, effects on"
 }
 
-toggle_mode() { [[ "$(current_mode)" == game ]] && start_business_mode || start_game_mode; }
+toggle_mode() {
+    if [[ "$(current_mode)" == business ]]; then start_game_mode; else start_business_mode; fi
+}
 
 show_menu() {
-    choice="$(printf '%s\n' "Game Mode" "Business Mode" "Lock" "Logout" "Reboot" "Shutdown" \
-        | fuzzel --dmenu --prompt "Mode  " --lines 6 --width 28)" || exit 0
+    choice="$(printf '%s\n' "Game Mode" "Stream Mode" "Business Mode" "Lock" "Logout" "Reboot" "Shutdown" \
+        | fuzzel --dmenu --prompt "Mode  " --lines 7 --width 28)" || exit 0
     case "$choice" in
         "Game Mode")     start_game_mode ;;
+        "Stream Mode")   start_stream_mode ;;
         "Business Mode") start_business_mode ;;
         "Lock")          swaylock -f ;;
         "Logout")        swaymsg exit ;;
@@ -61,9 +89,10 @@ show_menu() {
 
 case "${1:-}" in
     game)     start_game_mode ;;
+    stream)   start_stream_mode ;;
     business) start_business_mode ;;
     toggle)   toggle_mode ;;
     menu)     show_menu ;;
     status)   current_mode ;;
-    *) echo "Usage: $0 {game|business|toggle|menu|status}"; exit 1 ;;
+    *) echo "Usage: $0 {game|stream|business|toggle|menu|status}"; exit 1 ;;
 esac
